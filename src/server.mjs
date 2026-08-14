@@ -2,10 +2,24 @@ import { createServer } from "node:http";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { loadCatalog } from "./catalog.mjs";
 
-const catalog = await loadCatalog();
-const voiceById = new Map(catalog.voices.map((voice) => [voice.id, voice]));
+let catalog = await loadCatalog();
+let voiceById = new Map(catalog.voices.map((voice) => [voice.id, voice]));
+let nextCatalogRefreshAt = 0;
 const fishTtsModel = process.env.FISH_TTS_MODEL || "s2.1-pro-free";
 const unauthorizedSpeech = "我是狗，偷接口，偷完接口，当小丑。";
+
+async function refreshCatalogIfDue() {
+  const now = Date.now();
+  if (now < nextCatalogRefreshAt) return;
+  nextCatalogRefreshAt = now + Math.max(10, Number(process.env.CATALOG_REFRESH_SECONDS) || 300) * 1000;
+  try {
+    const next = await loadCatalog();
+    catalog = next;
+    voiceById = new Map(next.voices.map((voice) => [voice.id, voice]));
+  } catch (error) {
+    console.warn(`voice catalog refresh skipped: ${error.message}`);
+  }
+}
 
 export function currentFishTtsModel() {
   return fishTtsModel;
@@ -113,6 +127,7 @@ async function forward(res, upstream) {
 
 export async function handler(req, res) {
   const url = new URL(req.url, "http://localhost");
+  await refreshCatalogIfDue();
   if (req.method === "OPTIONS") return json(res, 204, {});
   if (req.method === "GET" && url.pathname === "/health") return json(res, 200, { ok: true, catalogVersion: catalog.version, voices: catalog.voices.length });
   if (req.method === "GET" && url.pathname === "/v1/audio/voice/catalog") return json(res, 200, filterCatalog(url));
