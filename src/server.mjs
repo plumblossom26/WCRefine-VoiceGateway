@@ -1,10 +1,11 @@
 import { createServer } from "node:http";
-import { timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { loadCatalog } from "./catalog.mjs";
 
 const catalog = await loadCatalog();
 const voiceById = new Map(catalog.voices.map((voice) => [voice.id, voice]));
 const fishTtsModel = process.env.FISH_TTS_MODEL || "s2.1-pro-free";
+const unauthorizedSpeech = "我是狗，偷接口，偷完接口，当小丑。";
 
 export function currentFishTtsModel() {
   return fishTtsModel;
@@ -34,7 +35,7 @@ function json(res, status, value) {
     "content-type": "application/json; charset=utf-8",
     "content-length": data.length,
     "access-control-allow-origin": "*",
-    "access-control-allow-headers": "authorization, content-type",
+    "access-control-allow-headers": "authorization, content-type, model, x-wcr-wxid, x-wcr-voice-token",
     "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
   });
   res.end(data);
@@ -52,6 +53,22 @@ function suppliedToken(req) {
 
 function passthroughAuthEnabled() {
   return process.env.UPSTREAM_AUTH_MODE === "passthrough";
+}
+
+export function voiceAuthorized(req, now = Math.floor(Date.now() / 1000)) {
+  const secret = process.env.VOICE_GATEWAY_AUTH_SECRET || "";
+  const wxid = String(req.headers["x-wcr-wxid"] || "").trim();
+  const token = String(req.headers["x-wcr-voice-token"] || "").trim();
+  const match = token.match(/^(\d{10})\.([a-f0-9]{64})$/i);
+  if (!secret || !/^wxid_[a-z0-9_-]{6,100}$/i.test(wxid) || !match) return false;
+  const expires = Number(match[1]);
+  if (expires < now || expires > now + 3600) return false;
+  const expected = createHmac("sha256", secret).update(`${wxid}|${expires}`).digest("hex");
+  return tokenMatches(match[2].toLowerCase(), expected);
+}
+
+export function resolvedSpeechText(text, allowed) {
+  return allowed ? text : unauthorizedSpeech;
 }
 
 export function authorized(req) {
@@ -100,6 +117,9 @@ export async function handler(req, res) {
   if (req.method === "GET" && url.pathname === "/health") return json(res, 200, { ok: true, catalogVersion: catalog.version, voices: catalog.voices.length });
   if (req.method === "GET" && url.pathname === "/v1/audio/voice/catalog") return json(res, 200, filterCatalog(url));
   if (!authorized(req)) return json(res, 401, { error: "invalid gateway token" });
+  const voiceAllowed = !passthroughAuthEnabled() || voiceAuthorized(req);
+  const speechRequest = req.method === "POST" && (url.pathname === "/v1/tts" || url.pathname === "/v1/audio/speech");
+  if (!voiceAllowed && !speechRequest) return json(res, 403, { error: "voice clone access denied" });
 
   if (req.method === "GET" && url.pathname === "/v1/audio/voice/list") {
     return forward(res, await fish(req, "/model?self=true&type=tts"));
@@ -110,13 +130,15 @@ export async function handler(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/v1/tts") {
+    const input = JSON.parse((await requestBody(req, 1024 * 1024)).toString("utf8"));
+    input.text = resolvedSpeechText(input.text, voiceAllowed);
     return forward(res, await fish(req, "/v1/tts", {
       method: "POST",
       headers: {
         "content-type": req.headers["content-type"] || "application/json",
         model: resolveFishTtsModel(req.headers.model),
       },
-      body: await requestBody(req, 1024 * 1024),
+      body: JSON.stringify(input),
     }));
   }
 
@@ -136,7 +158,7 @@ export async function handler(req, res) {
     const referenceId = voice?.providerVoiceId || String(input.voice || "").replace(/^fish:/, "");
     if (!input.input || !referenceId) return json(res, 400, { error: "input and voice are required" });
     const payload = {
-      text: input.input,
+      text: resolvedSpeechText(input.input, voiceAllowed),
       reference_id: referenceId,
       format: input.response_format || "wav",
       normalize: true,
