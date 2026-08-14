@@ -21,6 +21,8 @@ PORT=8787
 PROXY_TOKEN=$PROXY_TOKEN
 FISH_API_KEY=$FISH_API_KEY
 FISH_BASE_URL=https://api.fish.audio
+FISH_TTS_MODEL=auto
+FISH_MODEL_CONFIG_URL=https://raw.githubusercontent.com/plumblossom26/WCRefine-VoiceGateway/main/config/models.json
 VOICE_CATALOG_URL=https://raw.githubusercontent.com/plumblossom26/WCRefine-VoiceHub/main/catalog/voices.json
 CATALOG_CACHE_PATH=/data/catalog.json
 EOF
@@ -28,4 +30,3 @@ EOF
 docker compose up -d --build
 echo "VoiceGateway 已启动: http://SERVER_IP:8787"
 echo "PROXY_TOKEN=$PROXY_TOKEN"
-
