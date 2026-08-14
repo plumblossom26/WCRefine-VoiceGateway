@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "voices": [
+    {
+      "id": "fish:test-human",
+      "name": "测试真人",
+      "provider": "fish",
+      "providerVoiceId": "test-human",
+      "contentType": "human",
+      "avatar": "",
+      "description": "",
+      "sourceCategory": "Fish音色"
+    },
+    {
+      "id": "acgn:test-anime",
+      "name": "测试日漫",
+      "provider": "acgn",
+      "providerVoiceId": "test-anime",
+      "contentType": "anime",
+      "avatar": "",
+      "description": "",
+      "sourceCategory": "日漫音色"
+    }
+  ]
+}
+

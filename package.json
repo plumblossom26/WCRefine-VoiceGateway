@@ -1,0 +1,14 @@
+{
+  "name": "wcrefine-voice-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "CATALOG_PATH=./test/fixtures/catalog.json node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+
