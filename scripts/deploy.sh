@@ -6,7 +6,15 @@ INSTALL_DIR="${INSTALL_DIR:-$HOME/WCRefine-VoiceGateway}"
 
 command -v docker >/dev/null 2>&1 || { echo "请先安装 Docker"; exit 1; }
 docker compose version >/dev/null 2>&1 || { echo "请先安装 Docker Compose"; exit 1; }
-[ -n "${FISH_API_KEY:-}" ] || { echo "请先执行: export FISH_API_KEY='你的密钥'"; exit 1; }
+
+if [ -z "${DOMAIN:-}" ]; then
+  [ -r /dev/tty ] || { echo "请设置 DOMAIN"; exit 1; }
+  printf "反代域名: " > /dev/tty
+  IFS= read -r DOMAIN < /dev/tty
+fi
+case "$DOMAIN" in
+  ""|*[^A-Za-z0-9.-]*) echo "域名格式不正确"; exit 1 ;;
+esac
 
 if [ -d "$INSTALL_DIR/.git" ]; then
   git -C "$INSTALL_DIR" pull --ff-only
@@ -15,17 +23,24 @@ else
 fi
 
 cd "$INSTALL_DIR"
-PROXY_TOKEN="${PROXY_TOKEN:-$(openssl rand -hex 32)}"
+umask 077
 cat > .env <<EOF
 PORT=8787
-PROXY_TOKEN=$PROXY_TOKEN
-FISH_API_KEY=$FISH_API_KEY
+BIND_ADDR=127.0.0.1
+PROXY_TOKEN=
+FISH_API_KEY=
+UPSTREAM_AUTH_MODE=passthrough
 FISH_BASE_URL=https://api.fish.audio
 FISH_TTS_MODEL=s2.1-pro-free
 VOICE_CATALOG_URL=https://raw.githubusercontent.com/plumblossom26/WCRefine-VoiceHub/main/catalog/voices.json
 CATALOG_CACHE_PATH=/data/catalog.json
 EOF
+chmod 600 .env
+cat > Caddyfile <<EOF
+$DOMAIN {
+    reverse_proxy gateway:8787
+}
+EOF
 
 docker compose up -d --build
-echo "VoiceGateway 已启动: http://SERVER_IP:8787"
-echo "PROXY_TOKEN=$PROXY_TOKEN"
+echo "VoiceGateway 已启动: https://$DOMAIN"

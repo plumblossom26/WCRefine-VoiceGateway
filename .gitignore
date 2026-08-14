@@ -1,5 +1,5 @@
 .env
+Caddyfile
 .DS_Store
 node_modules/
 data/
-

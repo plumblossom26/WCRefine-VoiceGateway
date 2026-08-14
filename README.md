@@ -3,21 +3,7 @@
 ## 部署反代
 
 ```bash
-git clone https://github.com/plumblossom26/WCRefine-VoiceGateway.git
-cd WCRefine-VoiceGateway
-cp .env.example .env
+curl -fsSL https://raw.githubusercontent.com/plumblossom26/WCRefine-VoiceGateway/main/scripts/deploy.sh | bash
 ```
 
-编辑 `.env`：
-
-```ini
-UPSTREAM_AUTH_MODE=passthrough
-```
-
-启动：
-
-```bash
-docker compose up -d --build
-```
-
-插件开启「反代服务」后，填写你的 HTTPS 地址即可。
+按提示填写已解析到服务器的域名；插件开启「反代服务」后填写该 HTTPS 地址即可。

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { authorized, currentFishTtsModel, filterCatalog, resolveFishTtsModel, upstreamToken } from "../src/server.mjs";
 
 test("catalog filters without contacting the catalog host", () => {
@@ -20,4 +21,11 @@ test("passthrough mode forwards the client token", () => {
   assert.equal(authorized(req), true);
   assert.equal(upstreamToken(req), "client-key");
   delete process.env.UPSTREAM_AUTH_MODE;
+});
+
+test("one-click deploy enables pass-through HTTPS", async () => {
+  const script = await readFile(new URL("../scripts/deploy.sh", import.meta.url), "utf8");
+  assert.match(script, /UPSTREAM_AUTH_MODE=passthrough/);
+  assert.match(script, /Caddyfile/);
+  assert.match(script, /反代域名/);
 });
