@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { currentFishTtsModel, filterCatalog } from "../src/server.mjs";
+import { currentFishTtsModel, filterCatalog, resolveFishTtsModel } from "../src/server.mjs";
 
 test("catalog filters without contacting the catalog host", () => {
   const result = filterCatalog(new URL("http://localhost/v1/audio/voice/catalog?contentType=anime&q=日漫"));
@@ -10,4 +10,6 @@ test("catalog filters without contacting the catalog host", () => {
 
 test("Fish uses the fixed free model by default", () => {
   assert.equal(currentFishTtsModel(), "s2.1-pro-free");
+  assert.equal(resolveFishTtsModel("custom-free"), "custom-free");
+  assert.equal(resolveFishTtsModel(""), "s2.1-pro-free");
 });

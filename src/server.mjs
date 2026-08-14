@@ -10,6 +10,10 @@ export function currentFishTtsModel() {
   return fishTtsModel;
 }
 
+export function resolveFishTtsModel(model) {
+  return String(model || "").trim() || currentFishTtsModel();
+}
+
 export function filterCatalog(url) {
   const q = (url.searchParams.get("q") || "").trim().toLocaleLowerCase();
   const contentType = url.searchParams.get("contentType") || "";
@@ -105,7 +109,7 @@ export async function handler(req, res) {
     };
     return forward(res, await fish("/v1/tts", {
       method: "POST",
-      headers: { "content-type": "application/json", model: currentFishTtsModel() },
+      headers: { "content-type": "application/json", model: resolveFishTtsModel(input.model) },
       body: JSON.stringify(payload),
     }));
   }
