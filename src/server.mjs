@@ -46,8 +46,17 @@ function tokenMatches(value, expected) {
   return a.length === b.length && a.length > 0 && timingSafeEqual(a, b);
 }
 
-function authorized(req) {
-  const supplied = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+function suppliedToken(req) {
+  return (req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+}
+
+function passthroughAuthEnabled() {
+  return process.env.UPSTREAM_AUTH_MODE === "passthrough";
+}
+
+export function authorized(req) {
+  const supplied = suppliedToken(req);
+  if (passthroughAuthEnabled()) return supplied.length > 0;
   return tokenMatches(supplied, process.env.PROXY_TOKEN || "");
 }
 
@@ -62,8 +71,12 @@ async function requestBody(req, maxBytes = 20 * 1024 * 1024) {
   return Buffer.concat(chunks);
 }
 
-async function fish(path, init = {}) {
-  const key = process.env.FISH_API_KEY || "";
+export function upstreamToken(req) {
+  return passthroughAuthEnabled() ? suppliedToken(req) : (process.env.FISH_API_KEY || "");
+}
+
+async function fish(req, path, init = {}) {
+  const key = upstreamToken(req);
   if (!key) throw new Error("FISH_API_KEY is not configured");
   const base = (process.env.FISH_BASE_URL || "https://api.fish.audio").replace(/\/$/, "");
   return fetch(`${base}${path}`, {
@@ -89,7 +102,30 @@ export async function handler(req, res) {
   if (!authorized(req)) return json(res, 401, { error: "invalid gateway token" });
 
   if (req.method === "GET" && url.pathname === "/v1/audio/voice/list") {
-    return forward(res, await fish("/model?self=true&type=tts"));
+    return forward(res, await fish(req, "/model?self=true&type=tts"));
+  }
+
+  if (req.method === "GET" && url.pathname === "/model") {
+    return forward(res, await fish(req, `/model${url.search}`));
+  }
+
+  if (req.method === "POST" && url.pathname === "/v1/tts") {
+    return forward(res, await fish(req, "/v1/tts", {
+      method: "POST",
+      headers: {
+        "content-type": req.headers["content-type"] || "application/json",
+        model: resolveFishTtsModel(req.headers.model),
+      },
+      body: await requestBody(req, 1024 * 1024),
+    }));
+  }
+
+  if (req.method === "POST" && url.pathname === "/model") {
+    return forward(res, await fish(req, "/model", {
+      method: "POST",
+      headers: { "content-type": req.headers["content-type"] || "application/octet-stream" },
+      body: await requestBody(req),
+    }));
   }
 
   if (req.method === "POST" && url.pathname === "/v1/audio/speech") {
@@ -107,7 +143,7 @@ export async function handler(req, res) {
       latency: "normal",
       prosody: { speed: Number(input.speed) || 1 },
     };
-    return forward(res, await fish("/v1/tts", {
+    return forward(res, await fish(req, "/v1/tts", {
       method: "POST",
       headers: { "content-type": "application/json", model: resolveFishTtsModel(input.model) },
       body: JSON.stringify(payload),
@@ -115,7 +151,7 @@ export async function handler(req, res) {
   }
 
   if (req.method === "POST" && url.pathname === "/v1/audio/voice-clone") {
-    return forward(res, await fish("/model", {
+    return forward(res, await fish(req, "/model", {
       method: "POST",
       headers: { "content-type": req.headers["content-type"] || "application/octet-stream" },
       body: await requestBody(req),
@@ -124,7 +160,12 @@ export async function handler(req, res) {
 
   const match = url.pathname.match(/^\/v1\/audio\/voice\/([^/]+)$/);
   if (req.method === "DELETE" && match) {
-    return forward(res, await fish(`/model/${encodeURIComponent(match[1])}`, { method: "DELETE" }));
+    return forward(res, await fish(req, `/model/${encodeURIComponent(match[1])}`, { method: "DELETE" }));
+  }
+
+  const nativeModel = url.pathname.match(/^\/model\/([^/]+)$/);
+  if (req.method === "DELETE" && nativeModel) {
+    return forward(res, await fish(req, `/model/${encodeURIComponent(nativeModel[1])}`, { method: "DELETE" }));
   }
 
   return json(res, 404, { error: "not found" });
