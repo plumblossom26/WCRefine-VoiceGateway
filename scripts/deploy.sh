@@ -21,8 +21,7 @@ PORT=8787
 PROXY_TOKEN=$PROXY_TOKEN
 FISH_API_KEY=$FISH_API_KEY
 FISH_BASE_URL=https://api.fish.audio
-FISH_TTS_MODEL=auto
-FISH_MODEL_CONFIG_URL=https://raw.githubusercontent.com/plumblossom26/WCRefine-VoiceGateway/main/config/models.json
+FISH_TTS_MODEL=s2.1-pro-free
 VOICE_CATALOG_URL=https://raw.githubusercontent.com/plumblossom26/WCRefine-VoiceHub/main/catalog/voices.json
 CATALOG_CACHE_PATH=/data/catalog.json
 EOF

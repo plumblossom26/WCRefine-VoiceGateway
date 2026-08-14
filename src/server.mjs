@@ -4,27 +4,10 @@ import { loadCatalog } from "./catalog.mjs";
 
 const catalog = await loadCatalog();
 const voiceById = new Map(catalog.voices.map((voice) => [voice.id, voice]));
-const fishModelConfigURL = process.env.FISH_MODEL_CONFIG_URL ||
-  "https://raw.githubusercontent.com/plumblossom26/WCRefine-VoiceGateway/main/config/models.json";
-let fishTtsModel = process.env.FISH_TTS_MODEL && process.env.FISH_TTS_MODEL !== "auto"
-  ? process.env.FISH_TTS_MODEL
-  : "s2.1-pro-free";
+const fishTtsModel = process.env.FISH_TTS_MODEL || "s2.1-pro-free";
 
 export function currentFishTtsModel() {
   return fishTtsModel;
-}
-
-export async function refreshFishTtsModel(fetcher = fetch) {
-  if (process.env.FISH_TTS_MODEL && process.env.FISH_TTS_MODEL !== "auto") {
-    fishTtsModel = process.env.FISH_TTS_MODEL;
-    return fishTtsModel;
-  }
-  const response = await fetcher(fishModelConfigURL);
-  if (!response.ok) throw new Error(`model config HTTP ${response.status}`);
-  const model = String((await response.json())?.fish?.freeTtsModel || "").trim();
-  if (!/^[a-z0-9._-]{1,64}-free$/i.test(model)) throw new Error("invalid free Fish model");
-  fishTtsModel = model;
-  return model;
 }
 
 export function filterCatalog(url) {
@@ -145,8 +128,6 @@ export async function handler(req, res) {
 
 if (process.argv[1] === new URL(import.meta.url).pathname) {
   const port = Number(process.env.PORT) || 8787;
-  refreshFishTtsModel().catch((error) => console.warn(`Fish model config: ${error.message}; using ${currentFishTtsModel()}`));
-  setInterval(() => refreshFishTtsModel().catch(() => {}), 6 * 60 * 60 * 1000).unref();
   createServer((req, res) => handler(req, res).catch((error) => json(res, 500, { error: error.message }))).listen(port, "0.0.0.0");
   console.log(`WCRefine VoiceGateway listening on ${port}`);
 }
