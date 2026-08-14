@@ -17,7 +17,7 @@ export async function loadCatalog() {
   if (process.env.CATALOG_PATH) return readJSON(process.env.CATALOG_PATH);
   const cachePath = process.env.CATALOG_CACHE_PATH || "/data/catalog.json";
   try {
-    const response = await fetch(process.env.VOICE_CATALOG_URL || defaultURL);
+    const response = await fetch(process.env.VOICE_CATALOG_URL || defaultURL, { signal: AbortSignal.timeout(10000) });
     if (!response.ok) throw new Error(`catalog HTTP ${response.status}`);
     const value = await response.json();
     if (!valid(value)) throw new Error("invalid voice catalog");
@@ -32,4 +32,3 @@ export async function loadCatalog() {
     }
   }
 }
-
